@@ -1,12 +1,15 @@
+import os
+import requests
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from pymongo import MongoClient
-import os
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 security = HTTPBearer()
 app = FastAPI()
@@ -68,3 +71,28 @@ def login(user: UserIn):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"email": user.email})
     return {"success": True, "token": token}
+
+@app.post("/api/chat")
+def chat_with_gemini(payload: dict):
+    messages = payload.get("messages", [])
+    user_message = messages[-1]["content"] if messages else ""
+    gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY
+    gemini_payload = {
+        "contents": [{"parts": [{"text": user_message}]}]
+    }
+    response = requests.post(gemini_url, json=gemini_payload)
+    if response.status_code == 200:
+        gemini_data = response.json()
+        gemini_text = gemini_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        return {"role": "assistant", "content": gemini_text}
+    else:
+        return {"role": "assistant", "content": "Sorry, Gemini API error."}
+
+@app.get("/api/dashboard-data")
+def get_dashboard_data():
+    data = [
+        {"id": 1, "name": "Alice", "score": 95},
+        {"id": 2, "name": "Bob", "score": 88},
+        {"id": 3, "name": "Charlie", "score": 92}
+    ]
+    return {"rows": data}
