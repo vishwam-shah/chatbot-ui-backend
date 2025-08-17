@@ -13,6 +13,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from pymongo import MongoClient
+import os
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
@@ -44,14 +45,14 @@ app.add_middleware(
 )
 
 # MongoDB setup
-client = MongoClient("mongodb+srv://vishwamshah007:2FEdUuBbSNY8TI1r@cluster0.5jhbvkx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-db = client["chatbot"]
-users = db["users"]
-
-# JWT setup
-SECRET_KEY = "supersecretkey"
+MONGO_URI = os.getenv("MONGO_URI")
+SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_SECONDS = 60
+
+client = MongoClient(MONGO_URI)
+db = client["chatbot"]
+users = db["users"]
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
