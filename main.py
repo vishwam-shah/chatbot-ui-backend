@@ -1,13 +1,3 @@
-# Example usage in a chat endpoint:
-# @app.post("/api/chat")
-# def chat_endpoint(request: ChatRequest):
-#     ...existing code to generate assistant_response...
-#     cleaned_response = clean_assistant_prefix(assistant_response)
-#     return {"role": "assistant", "content": cleaned_response}
-def clean_assistant_prefix(text: str) -> str:
-    if text.lower().startswith("assistant:"):
-        return text[len("assistant:"):].lstrip()
-    return text
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,33 +8,20 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 
-
 security = HTTPBearer()
-
-# Define FastAPI app instance
 app = FastAPI()
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
-# JWT setup
-@app.get("/api/protected")
-def protected_route(payload=Depends(verify_token)):
-    return {"message": f"Hello, {payload['email']}! This is a protected route."}
-
-# CORS for Vercel frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://chatbot-ui-frontend.vercel.app","http://localhost:3000"],  # update to your Vercel URL
+    allow_origins=[
+        "https://chatbot-ui-frontend.vercel.app",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# MongoDB setup
 MONGO_URI = os.getenv("MONGO_URI")
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 ALGORITHM = "HS256"
@@ -53,7 +30,6 @@ ACCESS_TOKEN_EXPIRE_SECONDS = 60
 client = MongoClient(MONGO_URI)
 db = client["chatbot"]
 users = db["users"]
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class UserIn(BaseModel):
@@ -68,6 +44,17 @@ def create_access_token(data: dict, expires_delta: int = ACCESS_TOKEN_EXPIRE_SEC
     expire = datetime.utcnow() + timedelta(seconds=expires_delta)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+@app.get("/api/protected")
+def protected_route(payload=Depends(verify_token)):
+    return {"message": f"Hello, {payload['email']}! This is a protected route."}
 
 @app.post("/api/signup")
 def signup(user: UserIn):
