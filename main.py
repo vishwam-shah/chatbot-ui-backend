@@ -4,10 +4,12 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from pymongo import MongoClient
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
+from db import get_db, get_users_collection
+from dotenv import load_dotenv
+load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -15,20 +17,19 @@ security = HTTPBearer()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://chatbot-ui-frontend.vercel.app", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-MONGO_URI = os.getenv("MONGO_URI")
+
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_SECONDS = 60
 
-client = MongoClient(MONGO_URI)
-db = client["chatbot"]
-users = db["users"]
+db = get_db()
+users = get_users_collection(db)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class UserIn(BaseModel):
@@ -84,9 +85,9 @@ def chat_with_gemini(payload: dict):
     if response.status_code == 200:
         gemini_data = response.json()
         gemini_text = gemini_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        return {"role": "assistant", "content": gemini_text}
+        return {"content": gemini_text}
     else:
-        return {"role": "assistant", "content": "Sorry, Gemini API error."}
+        return {"content": "Sorry, Gemini API error."}
 
 @app.get("/api/dashboard-data")
 def get_dashboard_data():
@@ -96,3 +97,13 @@ def get_dashboard_data():
         {"id": 3, "name": "Charlie", "score": 92}
     ]
     return {"rows": data}
+
+# Health check endpoint for MongoDB connection
+@app.get("/api/db-health")
+def db_health():
+    try:
+        db = get_db()
+        db.command('ping')
+        return {"status": "connected"}
+    except Exception as e:
+        return {"status": "error", "details": str(e)}

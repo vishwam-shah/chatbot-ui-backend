@@ -6,3 +6,4 @@ passlib[bcrypt]
 pydantic
 email_validator
 requests
+python-dotenv
